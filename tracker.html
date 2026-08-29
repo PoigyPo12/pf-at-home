@@ -31,9 +31,8 @@
             gap: 10px;
         }
         
-        /* Pulsante toggle per il pannello admin */
         #admin-toggle-btn {
-            display: none; /* Mostrato via JS solo agli Admin */
+            display: none; 
             background: none;
             border: none;
             font-size: 1.4rem;
@@ -44,7 +43,7 @@
         }
         
         #admin-panel {
-            display: none; /* Nascosto di default, si apre col bottone */
+            display: none; 
             padding: 10px;
             background: #d6dadd;
             border-bottom: 1px solid #bdc3c7;
@@ -103,7 +102,14 @@
             color: #495057;
             box-sizing: border-box;
             cursor: pointer;
+            
+            /* Previene la selezione del testo e il menù nativo su iOS/Android */
             user-select: none;
+            -webkit-user-select: none; 
+            -moz-user-select: none;
+            -ms-user-select: none;
+            -webkit-touch-callout: none; 
+            
             touch-action: manipulation;
             transition: transform 0.05s ease;
         }
@@ -166,6 +172,10 @@
             font-family: inherit;
             resize: none;
             font-size: 1rem;
+            
+            /* Assicuriamoci che qui il testo sia selezionabile per poter scrivere la nota! */
+            user-select: text;
+            -webkit-user-select: text;
         }
         .modal-buttons {
             display: flex;
@@ -227,7 +237,6 @@
     </div>
 
     <script>
-        // Configurazione Firebase integrata
         const firebaseConfig = {
             apiKey: "AIzaSyBMUAwSLDIVVR6fk8Vyj3ciNclLIL839o4",
             authDomain: "pf-at-home.firebaseapp.com",
@@ -251,7 +260,6 @@
         const isAdmin = urlParams.get('role') === 'admin';
         
         if (isAdmin) {
-            // Mostra solo l'ingranaggio. Il pannello rimane nascosto finché non viene cliccato
             document.getElementById('admin-toggle-btn').style.display = 'block';
         }
 
@@ -293,9 +301,14 @@
             let touchStartX = 0;
             let touchStartY = 0;
 
+            // Blocca l'apertura del menù contestuale nativo
+            square.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+            });
+
             const startPress = (e) => {
                 isLongPress = false;
-                hasScrolled = false; // Reset dello scroll ad ogni nuovo tocco
+                hasScrolled = false; 
                 if (e.touches) {
                     touchStartX = e.touches[0].clientX;
                     touchStartY = e.touches[0].clientY;
@@ -312,7 +325,6 @@
                 if (e.touches) {
                     const moveX = Math.abs(e.touches[0].clientX - touchStartX);
                     const moveY = Math.abs(e.touches[0].clientY - touchStartY);
-                    // Se il dito si muove di oltre 10px, stiamo scrollando
                     if (moveX > 10 || moveY > 10) {
                         hasScrolled = true;
                         clearTimeout(pressTimer);
@@ -326,12 +338,10 @@
             const endPress = (e) => {
                 clearTimeout(pressTimer);
                 
-                // Disattiva il click di default SOLO se non stiamo scrollando
                 if (e.type === 'touchend' && (isLongPress || !hasScrolled)) {
                     e.preventDefault(); 
                 }
                 
-                // Cambia colore solo se è stato un tap netto (non un long press, non uno scroll)
                 if (!isLongPress && !hasScrolled) {
                     handleTap(tableId);
                 }

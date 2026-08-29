@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Purplefox at Home</title>
+    <title>PF at home</title>
     <style>
         body {
             font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             margin: 0;
             padding: 0;
-            background-color: #f0f2f5;
+            background-color: #e2e6ea; 
             -webkit-tap-highlight-color: transparent;
         }
         header {
@@ -27,16 +27,17 @@
             color: #333;
         }
         #admin-panel {
-            display: none; /* Nascosto di default, mostrato via JS se Admin */
+            display: none;
             padding: 10px;
-            background: #e9ecef;
-            border-bottom: 1px solid #ccc;
+            background: #d6dadd;
+            border-bottom: 1px solid #bdc3c7;
         }
         .admin-controls {
             display: flex;
             flex-wrap: wrap;
             gap: 10px;
             justify-content: center;
+            align-items: center;
             margin-bottom: 10px;
         }
         .admin-controls input {
@@ -56,6 +57,14 @@
         .btn-red { background: #ff4d4d; color: white; }
         .btn-white { background: #ffffff; border: 1px solid #ccc !important; }
         .btn-green { background: #4caf50; color: white; }
+        
+        /* Stile per il bottone di Reset */
+        .btn-reset { 
+            background: #8b0000; 
+            color: white; 
+            margin-left: 10px;
+            border: 2px solid #5a0000 !important;
+        }
 
         #grid-container {
             display: grid;
@@ -66,8 +75,8 @@
         }
         .square {
             position: relative;
-            background-color: #ffffff;
-            border: 2px solid #d1d5db; 
+            background-color: #f7f9fa; 
+            border: 2px solid #ced4da; 
             border-radius: 8px; 
             aspect-ratio: 1 / 1; 
             display: flex;
@@ -75,47 +84,98 @@
             justify-content: center;
             font-size: 5.5vw; 
             font-weight: bold;
-            color: #444;
+            color: #495057;
             box-sizing: border-box;
             cursor: pointer;
             user-select: none;
             touch-action: manipulation;
-            transition: background-color 0.15s ease, transform 0.05s ease;
+            transition: transform 0.05s ease;
         }
         @media (min-width: 600px) {
             .square { font-size: 18pt; }
         }
         .square:active { transform: scale(0.92); }
         
-        /* Colori di stato */
         .state-1 { background-color: #ff4d4d; color: white; border-color: #ff4d4d; } 
         .state-2 { background-color: #ffd700; color: #333; border-color: #ffd700; }  
         .state-3 { background-color: #4caf50; color: white; border-color: #4caf50; } 
         
-        /* Indicatore nota */
         .note-badge {
             position: absolute;
             top: 4px;
             right: 4px;
-            width: 12px;
-            height: 12px;
+            width: 14px;
+            height: 14px;
             background-color: #007bff;
             border-radius: 50%;
             display: none;
-            border: 2px solid white;
+            border: 2px solid rgba(255,255,255,0.7);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
         }
         .has-note .note-badge {
             display: block;
         }
+
+        #custom-modal {
+            display: none; 
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(2px);
+        }
+        .modal-content {
+            background-color: white;
+            padding: 20px;
+            border-radius: 12px;
+            width: 85%;
+            max-width: 350px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            text-align: center;
+        }
+        .modal-content h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .modal-content textarea {
+            width: 100%;
+            height: 80px;
+            margin-bottom: 15px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-family: inherit;
+            resize: none;
+            font-size: 1rem;
+        }
+        .modal-buttons {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        .modal-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+        .btn-cancel { background: #e0e0e0; color: #333; }
+        .btn-delete { background: #ff4d4d; color: white; }
+        .btn-save { background: #007bff; color: white; }
     </style>
     
-    <!-- Librerie Firebase (Compat per setup rapido senza bundler) -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 </head>
 <body>
     <header>
-        <h1 id="header-title">Purplefox at Home - Round <span id="round-display">1</span></h1>
+        <h1 id="header-title">PF at home - Round <span id="round-display">1</span></h1>
         
         <div id="admin-panel">
             <div class="admin-controls">
@@ -125,45 +185,57 @@
             </div>
             <div class="admin-controls">
                 <span>Bulk:</span>
-                <button class="btn-red" onclick="setAllTables(1)">Tutti Rossi</button>
-                <button class="btn-white" onclick="setAllTables(0)">Tutti Bianchi</button>
-                <button class="btn-green" onclick="setAllTables(3)">Tutti Verdi</button>
+                <button class="btn-red" onclick="setAllTables(1)">Rossi</button>
+                <button class="btn-white" onclick="setAllTables(0)">Bianchi</button>
+                <button class="btn-green" onclick="setAllTables(3)">Verdi</button>
+                <button class="btn-reset" onclick="hardReset()">RESET TOTALE</button>
             </div>
         </div>
     </header>
 
     <div id="grid-container"></div>
 
+    <div id="custom-modal">
+        <div class="modal-content">
+            <h3 id="modal-title">Nota Tavolo</h3>
+            <textarea id="modal-textarea" placeholder="Scrivi una nota (es. Time extension, appeal...)"></textarea>
+            <div class="modal-buttons">
+                <button class="modal-btn btn-cancel" onclick="closeModal()">Annulla</button>
+                <button class="modal-btn btn-delete" onclick="deleteNote()">Elimina</button>
+                <button class="modal-btn btn-save" onclick="saveNote()">Salva</button>
+            </div>
+        </div>
+    </div>
+
     <script>
+        // Configurazione Firebase integrata
         const firebaseConfig = {
-          apiKey: "AIzaSyBMUAwSLDIVVR6fk8Vyj3ciNclLIL839o4",
-          authDomain: "pf-at-home.firebaseapp.com",
-          databaseURL: "https://pf-at-home-default-rtdb.europe-west1.firebasedatabase.app",
-          projectId: "pf-at-home",
-          storageBucket: "pf-at-home.firebasestorage.app",
-          messagingSenderId: "964981822352",
-          appId: "1:964981822352:web:353a3d87e5a204f2ea5915"
+            apiKey: "AIzaSyBMUAwSLDIVVR6fk8Vyj3ciNclLIL839o4",
+            authDomain: "pf-at-home.firebaseapp.com",
+            databaseURL: "https://pf-at-home-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "pf-at-home",
+            storageBucket: "pf-at-home.firebasestorage.app",
+            messagingSenderId: "964981822352",
+            appId: "1:964981822352:web:353a3d87e5a204f2ea5915"
         };
 
-        // Inizializza Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
-        // Variabili Globali
         const container = document.getElementById('grid-container');
         let totalTables = 1500; 
         let currentRound = 1;
+        let activeNoteTableId = null; 
+        let isFirstLoad = true; 
         
-        // Verifica Ruolo tramite URL parameter (?role=admin)
         const urlParams = new URLSearchParams(window.location.search);
         const isAdmin = urlParams.get('role') === 'admin';
         if (isAdmin) {
             document.getElementById('admin-panel').style.display = 'block';
         }
 
-        // Funzione per generare/aggiornare la griglia HTML
         function renderGrid(count) {
-            container.innerHTML = ''; // Pulisce
+            container.innerHTML = ''; 
             for (let i = 1; i <= count; i++) {
                 const square = document.createElement('div');
                 square.className = 'square';
@@ -184,26 +256,38 @@
             }
         }
 
-        // Gestione Logica Long Press e Tap
         function setupInteractions(square, tableId) {
             let pressTimer;
             let isLongPress = false;
+            let touchStartX = 0;
+            let touchStartY = 0;
 
             const startPress = (e) => {
                 isLongPress = false;
+                if (e.touches) {
+                    touchStartX = e.touches[0].clientX;
+                    touchStartY = e.touches[0].clientY;
+                }
                 pressTimer = setTimeout(() => {
                     isLongPress = true;
-                    handleLongPress(tableId);
-                }, 600); // 600ms per attivare il long press
+                    openModal(tableId);
+                }, 500); 
             };
 
-            const cancelPress = () => {
-                clearTimeout(pressTimer);
+            const cancelPress = (e) => {
+                if (e.touches) {
+                    const moveX = Math.abs(e.touches[0].clientX - touchStartX);
+                    const moveY = Math.abs(e.touches[0].clientY - touchStartY);
+                    if (moveX > 10 || moveY > 10) {
+                        clearTimeout(pressTimer);
+                    }
+                } else {
+                    clearTimeout(pressTimer);
+                }
             };
 
             const endPress = (e) => {
                 clearTimeout(pressTimer);
-                // Evita il comportamento di default del click se è stato un long press
                 if (e.type === 'touchend') e.preventDefault(); 
                 
                 if (!isLongPress) {
@@ -215,7 +299,6 @@
             square.addEventListener('touchend', endPress);
             square.addEventListener('touchmove', cancelPress);
             
-            // Fallback per test su Desktop con mouse
             square.addEventListener('mousedown', startPress);
             square.addEventListener('mouseup', endPress);
             square.addEventListener('mouseleave', cancelPress);
@@ -225,57 +308,71 @@
             const square = document.getElementById(`table-${tableId}`);
             let currentState = parseInt(square.dataset.state || 0, 10);
             let newState = (currentState + 1) % 4;
-            
-            // Aggiorna solo questo nodo specifico nel database
             db.ref(`tournament/tables_state/${tableId}`).set(newState);
         }
 
-        function handleLongPress(tableId) {
-            // Legge la nota attuale dal DB (in un'app reale potremmo conservarla in RAM per velocità)
+        // --- GESTIONE MODAL NOTE ---
+        function openModal(tableId) {
+            activeNoteTableId = tableId;
+            document.getElementById('modal-title').textContent = `Nota Tavolo ${tableId}`;
+            
             db.ref(`tournament/tables_notes/${tableId}`).once('value').then((snapshot) => {
-                let currentNote = snapshot.val() || "";
-                let newNote = prompt(`Nota per il tavolo ${tableId}: (es. Time extension, appeal...)`, currentNote);
-                
-                if (newNote !== null) {
-                    if (newNote.trim() === "") {
-                        db.ref(`tournament/tables_notes/${tableId}`).remove(); // Pulisce il db
-                    } else {
-                        db.ref(`tournament/tables_notes/${tableId}`).set(newNote);
-                    }
-                }
+                document.getElementById('modal-textarea').value = snapshot.val() || "";
+                document.getElementById('custom-modal').style.display = 'flex';
+                document.getElementById('modal-textarea').focus();
             });
         }
 
-        // Sincronizzazione Realtime Firebase -> UI
+        function closeModal() {
+            document.getElementById('custom-modal').style.display = 'none';
+            document.getElementById('modal-textarea').value = "";
+            activeNoteTableId = null;
+        }
+
+        function saveNote() {
+            if (!activeNoteTableId) return;
+            const newNote = document.getElementById('modal-textarea').value.trim();
+            
+            if (newNote === "") {
+                db.ref(`tournament/tables_notes/${activeNoteTableId}`).remove();
+            } else {
+                db.ref(`tournament/tables_notes/${activeNoteTableId}`).set(newNote);
+            }
+            closeModal();
+        }
+
+        function deleteNote() {
+            if (!activeNoteTableId) return;
+            db.ref(`tournament/tables_notes/${activeNoteTableId}`).remove();
+            closeModal();
+        }
+        // ---------------------------
         
-        // 1. Ascolta i settaggi generali
         db.ref('tournament/settings').on('value', (snapshot) => {
             const settings = snapshot.val();
             if (settings) {
-                if (settings.total_tables && settings.total_tables !== totalTables) {
+                if (isFirstLoad || (settings.total_tables && settings.total_tables !== totalTables)) {
                     totalTables = settings.total_tables;
                     renderGrid(totalTables);
-                    // Ricarica lo stato su tutti i nuovi quadrati
                     db.ref('tournament/tables_state').once('value').then(applyStates);
                     db.ref('tournament/tables_notes').once('value').then(applyNotes);
+                    isFirstLoad = false;
                 }
                 if (settings.current_round) {
                     document.getElementById('round-display').textContent = settings.current_round;
                     if(isAdmin) document.getElementById('input-round').value = settings.current_round;
                 }
             } else {
-                // Primo avvio assoluto del DB
                 renderGrid(totalTables);
                 db.ref('tournament/settings').set({ current_round: 1, total_tables: 1500 });
+                isFirstLoad = false;
             }
         });
 
-        // 2. Ascolta i cambi di colore
         const applyStates = (snapshot) => {
             const states = snapshot.val() || {};
-            // Resetta prima tutti per sicurezza
             document.querySelectorAll('.square').forEach(sq => {
-                sq.className = 'square';
+                sq.classList.remove('state-1', 'state-2', 'state-3');
                 sq.dataset.state = 0;
             });
             for (const [id, state] of Object.entries(states)) {
@@ -288,7 +385,6 @@
         };
         db.ref('tournament/tables_state').on('value', applyStates);
 
-        // 3. Ascolta le note
         const applyNotes = (snapshot) => {
             const notes = snapshot.val() || {};
             document.querySelectorAll('.square').forEach(sq => sq.classList.remove('has-note'));
@@ -299,8 +395,6 @@
         };
         db.ref('tournament/tables_notes').on('value', applyNotes);
 
-
-        // Funzioni esclusive ADMIN
         function updateSettings() {
             const r = parseInt(document.getElementById('input-round').value);
             const t = parseInt(document.getElementById('input-tables').value);
@@ -309,14 +403,24 @@
         }
 
         function setAllTables(colorState) {
-            if(!confirm("Sei sicuro di voler cambiare il colore a tutti i tavoli?")) return;
+            if(!confirm("Sei sicuro di voler cambiare il colore di tutti i tavoli?")) return;
             
             let updates = {};
             for(let i = 1; i <= totalTables; i++) {
                 updates[i] = colorState;
             }
-            // Usa .update() o sovrascrive tutto per ottimizzare le scritture
             db.ref('tournament/tables_state').set(updates);
+        }
+
+        function hardReset() {
+            if(!confirm("ATTENZIONE: Stai per cancellare TUTTI i colori e TUTTE le note. L'operazione è IRREVERSIBILE. Vuoi procedere?")) return;
+            if(!confirm("Sei ASSOLUTAMENTE sicuro?")) return;
+            
+            db.ref('tournament/tables_state').remove();
+            db.ref('tournament/tables_notes').remove();
+            db.ref('tournament/settings/current_round').set(1);
+            
+            alert("Database resettato con successo.");
         }
     </script>
 </body>

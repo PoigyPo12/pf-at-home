@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Purplefox at Home</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f2f5;
+            -webkit-tap-highlight-color: transparent;
+        }
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background-color: #ffffff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            font-size: 1.3rem; 
+            margin: 0;
+            padding: 15px 10px;
+            color: #333;
+        }
+        #admin-panel {
+            display: none; /* Nascosto di default, mostrato via JS se Admin */
+            padding: 10px;
+            background: #e9ecef;
+            border-bottom: 1px solid #ccc;
+        }
+        .admin-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 10px;
+        }
+        .admin-controls input {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 80px;
+        }
+        .admin-controls button {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .btn-update { background: #333; color: white; }
+        .btn-red { background: #ff4d4d; color: white; }
+        .btn-white { background: #ffffff; border: 1px solid #ccc !important; }
+        .btn-green { background: #4caf50; color: white; }
+
+        #grid-container {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 6px; 
+            padding: 10px;
+            padding-bottom: 50px;
+        }
+        .square {
+            position: relative;
+            background-color: #ffffff;
+            border: 2px solid #d1d5db; 
+            border-radius: 8px; 
+            aspect-ratio: 1 / 1; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 5.5vw; 
+            font-weight: bold;
+            color: #444;
+            box-sizing: border-box;
+            cursor: pointer;
+            user-select: none;
+            touch-action: manipulation;
+            transition: background-color 0.15s ease, transform 0.05s ease;
+        }
+        @media (min-width: 600px) {
+            .square { font-size: 18pt; }
+        }
+        .square:active { transform: scale(0.92); }
+        
+        /* Colori di stato */
+        .state-1 { background-color: #ff4d4d; color: white; border-color: #ff4d4d; } 
+        .state-2 { background-color: #ffd700; color: #333; border-color: #ffd700; }  
+        .state-3 { background-color: #4caf50; color: white; border-color: #4caf50; } 
+        
+        /* Indicatore nota */
+        .note-badge {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            width: 12px;
+            height: 12px;
+            background-color: #007bff;
+            border-radius: 50%;
+            display: none;
+            border: 2px solid white;
+        }
+        .has-note .note-badge {
+            display: block;
+        }
+    </style>
+    
+    <!-- Librerie Firebase (Compat per setup rapido senza bundler) -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+</head>
+<body>
+    <header>
+        <h1 id="header-title">Purplefox at Home - Round <span id="round-display">1</span></h1>
+        
+        <div id="admin-panel">
+            <div class="admin-controls">
+                <input type="number" id="input-round" placeholder="Round">
+                <input type="number" id="input-tables" placeholder="Tavoli">
+                <button class="btn-update" onclick="updateSettings()">Aggiorna Settings</button>
+            </div>
+            <div class="admin-controls">
+                <span>Bulk:</span>
+                <button class="btn-red" onclick="setAllTables(1)">Tutti Rossi</button>
+                <button class="btn-white" onclick="setAllTables(0)">Tutti Bianchi</button>
+                <button class="btn-green" onclick="setAllTables(3)">Tutti Verdi</button>
+            </div>
+        </div>
+    </header>
+
+    <div id="grid-container"></div>
+
+    <script>
+        const firebaseConfig = {
+          apiKey: "AIzaSyBMUAwSLDIVVR6fk8Vyj3ciNclLIL839o4",
+          authDomain: "pf-at-home.firebaseapp.com",
+          databaseURL: "https://pf-at-home-default-rtdb.europe-west1.firebasedatabase.app",
+          projectId: "pf-at-home",
+          storageBucket: "pf-at-home.firebasestorage.app",
+          messagingSenderId: "964981822352",
+          appId: "1:964981822352:web:353a3d87e5a204f2ea5915"
+        };
+
+        // Inizializza Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        // Variabili Globali
+        const container = document.getElementById('grid-container');
+        let totalTables = 1500; 
+        let currentRound = 1;
+        
+        // Verifica Ruolo tramite URL parameter (?role=admin)
+        const urlParams = new URLSearchParams(window.location.search);
+        const isAdmin = urlParams.get('role') === 'admin';
+        if (isAdmin) {
+            document.getElementById('admin-panel').style.display = 'block';
+        }
+
+        // Funzione per generare/aggiornare la griglia HTML
+        function renderGrid(count) {
+            container.innerHTML = ''; // Pulisce
+            for (let i = 1; i <= count; i++) {
+                const square = document.createElement('div');
+                square.className = 'square';
+                square.id = `table-${i}`;
+                square.dataset.tableId = i;
+                
+                const numberSpan = document.createElement('span');
+                numberSpan.textContent = i;
+                
+                const noteBadge = document.createElement('div');
+                noteBadge.className = 'note-badge';
+                
+                square.appendChild(numberSpan);
+                square.appendChild(noteBadge);
+                
+                setupInteractions(square, i);
+                container.appendChild(square);
+            }
+        }
+
+        // Gestione Logica Long Press e Tap
+        function setupInteractions(square, tableId) {
+            let pressTimer;
+            let isLongPress = false;
+
+            const startPress = (e) => {
+                isLongPress = false;
+                pressTimer = setTimeout(() => {
+                    isLongPress = true;
+                    handleLongPress(tableId);
+                }, 600); // 600ms per attivare il long press
+            };
+
+            const cancelPress = () => {
+                clearTimeout(pressTimer);
+            };
+
+            const endPress = (e) => {
+                clearTimeout(pressTimer);
+                // Evita il comportamento di default del click se è stato un long press
+                if (e.type === 'touchend') e.preventDefault(); 
+                
+                if (!isLongPress) {
+                    handleTap(tableId);
+                }
+            };
+
+            square.addEventListener('touchstart', startPress);
+            square.addEventListener('touchend', endPress);
+            square.addEventListener('touchmove', cancelPress);
+            
+            // Fallback per test su Desktop con mouse
+            square.addEventListener('mousedown', startPress);
+            square.addEventListener('mouseup', endPress);
+            square.addEventListener('mouseleave', cancelPress);
+        }
+
+        function handleTap(tableId) {
+            const square = document.getElementById(`table-${tableId}`);
+            let currentState = parseInt(square.dataset.state || 0, 10);
+            let newState = (currentState + 1) % 4;
+            
+            // Aggiorna solo questo nodo specifico nel database
+            db.ref(`tournament/tables_state/${tableId}`).set(newState);
+        }
+
+        function handleLongPress(tableId) {
+            // Legge la nota attuale dal DB (in un'app reale potremmo conservarla in RAM per velocità)
+            db.ref(`tournament/tables_notes/${tableId}`).once('value').then((snapshot) => {
+                let currentNote = snapshot.val() || "";
+                let newNote = prompt(`Nota per il tavolo ${tableId}: (es. Time extension, appeal...)`, currentNote);
+                
+                if (newNote !== null) {
+                    if (newNote.trim() === "") {
+                        db.ref(`tournament/tables_notes/${tableId}`).remove(); // Pulisce il db
+                    } else {
+                        db.ref(`tournament/tables_notes/${tableId}`).set(newNote);
+                    }
+                }
+            });
+        }
+
+        // Sincronizzazione Realtime Firebase -> UI
+        
+        // 1. Ascolta i settaggi generali
+        db.ref('tournament/settings').on('value', (snapshot) => {
+            const settings = snapshot.val();
+            if (settings) {
+                if (settings.total_tables && settings.total_tables !== totalTables) {
+                    totalTables = settings.total_tables;
+                    renderGrid(totalTables);
+                    // Ricarica lo stato su tutti i nuovi quadrati
+                    db.ref('tournament/tables_state').once('value').then(applyStates);
+                    db.ref('tournament/tables_notes').once('value').then(applyNotes);
+                }
+                if (settings.current_round) {
+                    document.getElementById('round-display').textContent = settings.current_round;
+                    if(isAdmin) document.getElementById('input-round').value = settings.current_round;
+                }
+            } else {
+                // Primo avvio assoluto del DB
+                renderGrid(totalTables);
+                db.ref('tournament/settings').set({ current_round: 1, total_tables: 1500 });
+            }
+        });
+
+        // 2. Ascolta i cambi di colore
+        const applyStates = (snapshot) => {
+            const states = snapshot.val() || {};
+            // Resetta prima tutti per sicurezza
+            document.querySelectorAll('.square').forEach(sq => {
+                sq.className = 'square';
+                sq.dataset.state = 0;
+            });
+            for (const [id, state] of Object.entries(states)) {
+                const sq = document.getElementById(`table-${id}`);
+                if (sq && state > 0) {
+                    sq.dataset.state = state;
+                    sq.classList.add(`state-${state}`);
+                }
+            }
+        };
+        db.ref('tournament/tables_state').on('value', applyStates);
+
+        // 3. Ascolta le note
+        const applyNotes = (snapshot) => {
+            const notes = snapshot.val() || {};
+            document.querySelectorAll('.square').forEach(sq => sq.classList.remove('has-note'));
+            for (const id of Object.keys(notes)) {
+                const sq = document.getElementById(`table-${id}`);
+                if (sq) sq.classList.add('has-note');
+            }
+        };
+        db.ref('tournament/tables_notes').on('value', applyNotes);
+
+
+        // Funzioni esclusive ADMIN
+        function updateSettings() {
+            const r = parseInt(document.getElementById('input-round').value);
+            const t = parseInt(document.getElementById('input-tables').value);
+            if (r) db.ref('tournament/settings/current_round').set(r);
+            if (t) db.ref('tournament/settings/total_tables').set(t);
+        }
+
+        function setAllTables(colorState) {
+            if(!confirm("Sei sicuro di voler cambiare il colore a tutti i tavoli?")) return;
+            
+            let updates = {};
+            for(let i = 1; i <= totalTables; i++) {
+                updates[i] = colorState;
+            }
+            // Usa .update() o sovrascrive tutto per ottimizzare le scritture
+            db.ref('tournament/tables_state').set(updates);
+        }
+    </script>
+</body>
+</html>
